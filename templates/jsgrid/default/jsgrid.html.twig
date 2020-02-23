@@ -1,0 +1,127 @@
+<div id="{{ jsgrid.name }}"></div>
+<div style="display: none;">
+{% include "forms/form.html.twig" with {form: forms('jsgrid-select')} %}
+{% include "forms/form.html.twig" with {form: forms('jsgrid-add')} %}
+</div>
+
+<script>
+ 
+    var countries = [
+        { name: "", id: 0 },
+        { name: "United States", id: 1 },
+        { name: "Canada", id: 2 },
+        { name: "United Kingdom", id: 3 }
+    ];
+    
+    var form_select = $('#jsgrid-select');
+    var form_add    = $('#jsgrid-add');
+    
+    function reload(grid)
+    {
+        $("#" + grid).jsGrid("loadData");
+    }
+    var changeVal = function (items)
+    {
+        $.each(items,function(i, v) {
+            var index =  'data[' + i.toLowerCase() + ']';
+            var valeur = v;
+            $('input[name^="data"]').each(function() {
+                if (index == $(this).attr('name'))
+                {
+                    $(this).val(valeur);
+                }
+                });
+        });
+    }
+    $("#{{ jsgrid.name }}").jsGrid({
+ 
+        controller: {
+            loadData: function() {
+                var d = $.Deferred();
+                $.ajax({
+                    url: form_select.attr('action'),
+                    type: form_select.attr('method'),
+                    data: form_select.serialize(),
+                    dataType: 'json'
+                }).done(function(response) {
+                console.log(response['form_json_response']);
+                    d.resolve(response['form_json_response']);
+                    
+                });
+                return d.promise();
+            },
+            insertItem: function(items) {
+                changeVal(items);
+                var d = $.Deferred();
+                var retour;
+                $.ajax({
+                    url: form_add.attr('action'),
+                    type: form_add.attr('method'),
+                    data: form_add.serialize(),
+                    dataType: 'json'
+                }).done(function(response) {
+                    d.resolve(response['form_json_response']);
+                });
+                reload("{{ jsgrid.name }}");
+                return d.promise();
+            },
+            updateItem: function(items) {
+                changeVal(items);
+                var d = $.Deferred();
+                var retour;
+                $.ajax({
+                    url: form_add.attr('action'),
+                    type: form_add.attr('method'),
+                    data: form_add.serialize(),
+                    dataType: 'json'
+                }).done(function(response) {
+                    d.resolve(response['form_json_response']);
+                });
+                reload("{{ jsgrid.name }}");
+                return d.promise();
+            },
+            deleteItem: function(items) {
+                changeVal(items);
+                var d = $.Deferred();
+                var retour;
+                $.ajax({
+                    url: form_add.attr('action'),
+                    type: form_add.attr('method'),
+                    data: form_add.serialize(),
+                    dataType: 'json'
+                }).done(function(response) {
+                    d.resolve(response['form_json_response']);
+                });
+                reload("{{ jsgrid.name }}");
+                return d.promise();
+            }
+        },
+        autoload: true,
+        {% for field_name, field in jsgrid.options %}
+                {{ field_name }}:{{ field|default(false) }},
+        {% endfor %}
+ 
+        fields: [
+            {% for field_name, field in jsgrid.fields %}
+                {
+                    name: "{{ field_name }}",
+                    title: "{{ field.label|default(field_name) }}", 
+                    type: "{{ field.type|default("text") }}",
+                    {% if field.items is defined %}
+                        items: {{ field.items }},
+                    {% endif  %}
+                    {% if field.valueField is defined %}
+                        valueField: "{{ field.valueField }}",
+                    {% endif  %}
+                    {% if field.textField is defined %}
+                        textField: "{{ field.textField }}",
+                    {% endif  %}
+                    {% if field.width is defined %}
+                        width: "{{ field.width }}",
+                    {% endif  %}
+                },
+            {% endfor %}
+            { type: "control" }
+        ]
+    });
+</script>

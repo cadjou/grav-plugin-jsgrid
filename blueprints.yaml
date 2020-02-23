@@ -1,5 +1,5 @@
 name: JsGrid
-version: 0.1.0
+version: 0.2.0
 testing: false
 description: Include JsGrid HTML Front-end
 icon: check-square
@@ -12,6 +12,11 @@ bugs: https://github.com/cadjou/grav-plugin-jsgrid/issues
 docs: https://github.com/cadjou/grav-plugin-jsgrid/blob/master/README.md
 license: MIT
 
+dependencies:
+    - { name: grav, version: '>=1.6.0' }
+    - { name: form, version: '>=3.0.3' }
+    - { name: cadphp, version: '>=2.0.0' }
+    
 form:
   validation: strict
   fields:
@@ -25,7 +30,13 @@ form:
         0: PLUGIN_ADMIN.DISABLED
       validate:
         type: bool
-
+    version:
+      type: select
+      size: small
+      label: PLUGIN_JSGRID.VERSION
+      default: '1.5.3'
+      options:
+        1.5.3: 'JsGrid v1.5.3'
     always_load:
       type: toggle
       label: PLUGIN_JSGRID.ALWAYS_LOAD

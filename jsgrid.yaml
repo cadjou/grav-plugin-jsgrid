@@ -1,4 +1,5 @@
 enabled: true
+version: 1.5.3
 always_load: false
 use_cdn: false
 mode: production

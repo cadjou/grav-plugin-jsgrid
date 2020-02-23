@@ -1,0 +1,12 @@
+{% extends 'partials/base.html.twig' %}
+
+{% block content %}
+
+    {{ content|raw }}
+    {% if jsgrid is defined and jsgrid is iterable %}
+        {% include "jsgrid/jsgrid.html.twig" %}
+    {% else %}
+        Sold-out!
+    {% endif  %}
+
+{% endblock %}
