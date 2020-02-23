@@ -1,0 +1,60 @@
+name: JsGrid
+version: 0.1.0
+testing: false
+description: Include JsGrid HTML Front-end
+icon: check-square
+author:
+  name: CaDJoU
+  email: cadjou@gmail.com
+homepage: https://github.com/cadjou/grav-plugin-jsgrid
+keywords: grav, php, plugin, jsgrid
+bugs: https://github.com/cadjou/grav-plugin-jsgrid/issues
+docs: https://github.com/cadjou/grav-plugin-jsgrid/blob/master/README.md
+license: MIT
+
+form:
+  validation: strict
+  fields:
+    enabled:
+      type: toggle
+      label: PLUGIN_ADMIN.PLUGIN_STATUS
+      highlight: 1
+      default: 0
+      options:
+        1: PLUGIN_ADMIN.ENABLED
+        0: PLUGIN_ADMIN.DISABLED
+      validate:
+        type: bool
+
+    always_load:
+      type: toggle
+      label: PLUGIN_JSGRID.ALWAYS_LOAD
+      highlight: 1
+      default: 0
+      options:
+        1: PLUGIN_ADMIN.ENABLED
+        0: PLUGIN_ADMIN.DISABLED
+      validate:
+        type: bool
+      help: PLUGIN_JSGRID.ALWAYS_LOAD_HELP
+
+    use_cdn:
+      type: toggle
+      label: PLUGIN_JSGRID.USE_CDN
+      highlight: 1
+      default: 0
+      options:
+        1: PLUGIN_ADMIN.ENABLED
+        0: PLUGIN_ADMIN.DISABLED
+      validate:
+        type: bool
+      help: PLUGIN_JSGRID.USE_CDN_HELP
+
+    mode:
+      type: select
+      size: small
+      label: PLUGIN_JSGRID.MODE
+      default: 'production'
+      options:
+        development: Development
+        production: Production

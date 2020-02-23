@@ -1,0 +1,17 @@
+en:
+  PLUGIN_JSGRID:
+    VERSION: 'JsGrid version'
+    STATUS: 'Plugin status'
+    ALWAYS_LOAD: 'Always load'
+    ALWAYS_LOAD_HELP: 'If disabled, let the theme decide to load the JsGrid plugin'
+    USE_CDN: 'Use JsGrid CDN'
+    USE_CDN_HELP: "Load JsGrid from CDN"
+    MODE: Mode
+fr:
+  PLUGIN_JSGRID:
+    STATUS: 'Statut du plugin'
+    ALWAYS_LOAD: 'Toujours charger'
+    ALWAYS_LOAD_HELP: 'Si désactivé, laisser le thème décider de charger le plugin JsGrid'
+    USE_CDN: 'Utiliser le CDN JsGrid'
+    USE_CDN_HELP: "Charger les CSS JsGrid et les JavaScript depuis le CDN"
+    MODE: 'Mode'
