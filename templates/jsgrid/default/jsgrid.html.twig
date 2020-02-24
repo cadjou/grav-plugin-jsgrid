@@ -1,7 +1,6 @@
-<div id="{{ jsgrid.name }}"></div>
+<div id="jsgrid_{{ jsgrid.getName }}"></div>
 <div style="display: none;">
-{% include "forms/form.html.twig" with {form: forms('jsgrid-select')} %}
-{% include "forms/form.html.twig" with {form: forms('jsgrid-add')} %}
+{% include "forms/form.html.twig" with {form: forms(jsgrid.getName)} %}
 </div>
 
 <script>
@@ -13,19 +12,18 @@
         { name: "United Kingdom", id: 3 }
     ];
     
-    var form_select = $('#jsgrid-select');
-    var form_add    = $('#jsgrid-add');
+    var form_jsgrid   = $('#{{ jsgrid.getId }}');
     
     function reload(grid)
     {
         $("#" + grid).jsGrid("loadData");
     }
-    var changeVal = function (items)
+    var changeVal = function (items,form)
     {
         $.each(items,function(i, v) {
             var index =  'data[' + i.toLowerCase() + ']';
             var valeur = v;
-            $('input[name^="data"]').each(function() {
+            form.find('input[name^="data"]').each(function() {
                 if (index == $(this).attr('name'))
                 {
                     $(this).val(valeur);
@@ -33,15 +31,18 @@
                 });
         });
     }
-    $("#{{ jsgrid.name }}").jsGrid({
+    $("#jsgrid_{{ jsgrid.getName }}").jsGrid({
  
         controller: {
-            loadData: function() {
+            loadData: function(items) {
+                changeVal(items,form_jsgrid);
                 var d = $.Deferred();
+                console.log(items);
+                console.log(form_jsgrid);
                 $.ajax({
-                    url: form_select.attr('action'),
-                    type: form_select.attr('method'),
-                    data: form_select.serialize(),
+                    url: form_jsgrid.attr('action'),
+                    type: form_jsgrid.attr('method'),
+                    data: form_jsgrid.serialize(),
                     dataType: 'json'
                 }).done(function(response) {
                 console.log(response['form_json_response']);
@@ -51,48 +52,48 @@
                 return d.promise();
             },
             insertItem: function(items) {
-                changeVal(items);
+                changeVal(items,form_jsgrid);
                 var d = $.Deferred();
                 var retour;
                 $.ajax({
-                    url: form_add.attr('action'),
-                    type: form_add.attr('method'),
-                    data: form_add.serialize(),
+                    url: form_jsgrid.attr('action'),
+                    type: form_jsgrid.attr('method'),
+                    data: form_jsgrid.serialize(),
                     dataType: 'json'
                 }).done(function(response) {
                     d.resolve(response['form_json_response']);
                 });
-                reload("{{ jsgrid.name }}");
+                reload("jsgrid_{{ jsgrid.getName }}");
                 return d.promise();
             },
             updateItem: function(items) {
-                changeVal(items);
+                changeVal(items,form_jsgrid);
                 var d = $.Deferred();
                 var retour;
                 $.ajax({
-                    url: form_add.attr('action'),
-                    type: form_add.attr('method'),
-                    data: form_add.serialize(),
+                    url: form_jsgrid.attr('action'),
+                    type: form_jsgrid.attr('method'),
+                    data: form_jsgrid.serialize(),
                     dataType: 'json'
                 }).done(function(response) {
                     d.resolve(response['form_json_response']);
                 });
-                reload("{{ jsgrid.name }}");
+                reload("jsgrid_{{ jsgrid.getName }}");
                 return d.promise();
             },
             deleteItem: function(items) {
-                changeVal(items);
+                changeVal(items,form_jsgrid);
                 var d = $.Deferred();
                 var retour;
                 $.ajax({
-                    url: form_add.attr('action'),
-                    type: form_add.attr('method'),
-                    data: form_add.serialize(),
+                    url: form_jsgrid.attr('action'),
+                    type: form_jsgrid.attr('method'),
+                    data: form_jsgrid.serialize(),
                     dataType: 'json'
                 }).done(function(response) {
                     d.resolve(response['form_json_response']);
                 });
-                reload("{{ jsgrid.name }}");
+                reload("jsgrid_{{ jsgrid.getName }}");
                 return d.promise();
             }
         },
@@ -103,6 +104,7 @@
  
         fields: [
             {% for field_name, field in jsgrid.fields %}
+                {% if field.type != "hidden" %}
                 {
                     name: "{{ field_name }}",
                     title: "{{ field.label|default(field_name) }}", 
@@ -120,6 +122,7 @@
                         width: "{{ field.width }}",
                     {% endif  %}
                 },
+                    {% endif  %}
             {% endfor %}
             { type: "control" }
         ]

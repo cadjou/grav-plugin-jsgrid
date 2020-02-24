@@ -1,6 +1,6 @@
 <?php
 namespace Grav\Plugin;
-
+use Grav\Common\Session;
 use Grav\Common\Data\ValidationException;
 use Grav\Common\Debugger;
 use Grav\Common\Filesystem\Folder;
@@ -8,6 +8,7 @@ use Grav\Common\Grav;
 use Grav\Common\Page\Interfaces\PageInterface;
 use Grav\Common\Page\Pages;
 use Grav\Common\Page\Types;
+use Grav\Common\Page\Page;
 use Grav\Common\Plugin;
 use Grav\Common\Twig\Twig;
 use Grav\Common\Utils;
@@ -23,6 +24,8 @@ use RocketTheme\Toolbox\File\File;
 use RocketTheme\Toolbox\Event\Event;
 use Grav\Plugin\Jsgrid\Jsgrid;
 use Grav\Plugin\Jsgrid\Jsgrids;
+use Grav\Plugin\Form\Form;
+use Grav\Plugin\Form\Forms;
 
 class JsgridPlugin extends Plugin
 {
@@ -32,24 +35,20 @@ class JsgridPlugin extends Plugin
 
     /** @var array */
     protected $jsgrids = [];
+    
+    /** @var array */
+    protected $jsgridsSession = [];
 	
-	/**
-     * @return bool
-     */
-    public static function checkRequirements(): bool
+	public static function checkRequirements(): bool
     {
         return version_compare(GRAV_VERSION, '1.6', '>');
     }
 	
-    /**
-     * @return array
-     */
     public static function getSubscribedEvents()
     {
 		if (!static::checkRequirements()) {
             return [];
         }
-		
         return [
             'onPluginsInitialized' => [
                 ['onPluginsInitialized', 0]
@@ -57,39 +56,37 @@ class JsgridPlugin extends Plugin
             'onTwigTemplatePaths' => ['onTwigTemplatePaths', 0]
         ];
     }
-
-	/**
-     * Initialize forms from cache if possible
-     */
-    public function onPluginsInitialized()
+    
+	public function onPluginsInitialized()
     {
-        $this->grav['jsgrids'] = function () {
-            $jsgrids = new Jsgrids();
-
-            $grav = Grav::instance();
-            $event = new Event(['jsgrids' => $jsgrids]);
-            $grav->fireEvent('onJsgridRegisterTypes', $event);
-
-            return $jsgrids;
-        };
-
+        $this->jsgridsSession = Grav::instance()['session']->getFlashObject('jsgrid');
         if ($this->isAdmin()) {
             $this->enable([
                 'onGetPageTemplates' => ['onGetPageTemplates', 0],
             ]);
             return;
         }
+        
+        if ($this->isJsgridRoute())
+		{
+			$this->enable([
+				'onPagesInitialized' => ['onPagesInitialized', 0],
+				'onFormProcessed'    => ['onFormProcessed', 0],
+			]);
+		}
+		else
+		{
+			$this->enable([
+				'onPageProcessed'    => ['onPageProcessed', 0],
+				'onPageInitialized' => ['onPageInitialized', 0],
+			]);
+		}
 
         // Mini Keep-Alive Logic
         $task = $this->grav['uri']->param('task');
         if ($task && $task === 'keep-alive') {
             exit;
         }
-
-        $this->enable([
-            'onPageProcessed' => ['onPageProcessed', 0],
-            'onPageInitialized' => ['onPageInitialized', 0],
-        ]);
     }
 	
 	public function onGetPageTemplates(Event $event)
@@ -98,31 +95,52 @@ class JsgridPlugin extends Plugin
         $types = $event->types;
         $types->register('jsgrid');
     }
-	
-	public function pageIsJsgrid($page)
-	{
-		$pageName = $page->value('name');
-		if ($page->modularTwig())
+	    
+    public function onPagesInitialized()
+    {
+        if (!$this->jsgridsSession or !\is_array($this->jsgridsSession))
+        {
+            return;
+        }
+        foreach($this->jsgridsSession as $id=>$jsgrid)
+        {
+            $header = isset($jsgrid['header']) ? $jsgrid['header'] : false;
+            $route  = isset($header['form'],$header['form']['action']) ? $header['form']['action'] : false;
+            if ($route)
+            {
+                $page = $this->addRegisterPage($header,$route); 
+            }
+        }
+    }
+    
+    public function onFormProcessed(Event $event)
+    {
+        // print_r($event);
+        $form = $event['form'];
+        $action = $event['action'];
+        $params = $event['params'];
+        
+        $idJsgrid = isset($form->getValue('data')['_id']) ? $form->getValue('data')['_id'] : false;
+        
+        print_r($this->jsgridsSession[$idJsgrid]);
+		if ($event['action'] <> 'jsgrid')
 		{
-			$pageName = substr($pageName,6);
+			return;
 		}
-		if ($pageName <> 'jsgrid')
+        $return_data = [];
+		foreach($params as $key=>$data)
 		{
-			return false;
+			$return_data[$key] = \Grav\Plugin\CadphpPlugin::dataProcess($data);
 		}
-		$header = (array) $page->header();
-		if (empty($header['jsgrid']))
+		if ($this->isRequestJson())
 		{
-			return false;
+			// Return JSON
+			header('Content-Type: application/json');
+			echo json_encode($return_data);
+			exit;	
 		}
-		return $header['jsgrid'];
-	}
-	
-	/**
-     * Process forms after page header processing, but before caching
-     *
-     * @param Event $e
-     */
+    }
+    	
 	public function onPageProcessed(Event $e)
     {
         /** @var PageInterface $page */
@@ -134,45 +152,35 @@ class JsgridPlugin extends Plugin
 		}
         // print_r($dataJsgrid);
         
+        $uniqid = str_replace('.','',uniqid());
+        
+        $dataJsgrid['fields']['_id']['default'] = $uniqid;
+        $dataJsgrid['fields']['_id']['type'] = 'hidden';
+        
+        $header['form']['name']     = $dataJsgrid['name'] . '_' . $uniqid;
+        $header['form']['action']   = '/_jsgrid/_form/' . $uniqid;
+        $header['form']['fields']   = $dataJsgrid['fields'];
+        $header['form']['process']  = ['jsgrid'=>['form_json_response'=>'p5:select']];
+        
+        $dataJsgrid['header'] = $header;
+        $jsgrids[$uniqid] = $dataJsgrid;
+        Grav::instance()['session']->setFlashObject('jsgrid',$jsgrids);
+        $page = $this->addRegisterPage($header,$header['form']['action']);
+        $form = $this->grav['forms']->createPageForm($page,$header['form']['name']);
+        
+        $dataJsgrid['getUniqueId']  = $form->getUniqueId();
+        $dataJsgrid['getNonce']     = $form->getNonce();
+        $dataJsgrid['getNonceName'] = $form->getNonceName();
+        $dataJsgrid['getId']        = $form->get('id');
+        $dataJsgrid['getName']      = $form->get('name');
+        
         $twig	= $this->grav['twig'];
         $twig->twig_vars['jsgrid'] = $dataJsgrid;
-        
-        
 		return;
-		 // Force never_cache_twig if modular form (recursively up)
-        $current = $page;
-        while ($current && $current->modularTwig()) {
-            $header = $current->header();
-            $header->never_cache_twig = true;
-
-            $current = $current->parent();
-        }
-        $parent = $current && $current !== $page ? $current : null;
-
-        $page_route = $page->home() ? '/' : $page->route();
-
-        // If the form was in the modular page, we need to add the form into the parent page as well.
-        if ($parent) {
-            $parent->addJsgrid($pageJsgrids);
-            $parent_route = $parent->home() ? '/' : $parent->route();
-        }
-
-        /** @var Forms $forms */
-        $jsgrids = $this->grav['jsgrids'];
-
-        // Store the page forms in the forms instance
-        foreach ($pageJsgrids as $name => $jsgrid) {
-            if (isset($parent, $parent_route)) {
-                $this->addJsgrid($parent_route, $jsgrids->createPageForm($parent, $name, $jsgrid));
-            }
-            $this->addJsgrid($page_route, $jsgrids->createPageForm($parent, $name, $jsgrid));
-        }
 	}
-    /**
-     * Initialize configuration
-     */
+    
     public function onPageInitialized()
-    {
+    {   
         $load = !empty($this->config->get('plugins.jsgrid.always_load'));
 
 		if (!$load)
@@ -189,31 +197,7 @@ class JsgridPlugin extends Plugin
 			]);
 		}
     }
-	
-    /**
-     * Add a form to the forms plugin
-     *
-     * @param string|null $page_route
-     * @param FormInterface|null $form
-     */
-    public function addJsgrid(?string $page_route, ?FormInterface $form)
-    {
-        if (null === $form) {
-            return;
-        }
-
-        $name = $form->getName();
-
-        if (!isset($this->jsgrids[$page_route][$name])) {
-            $this->jsgrids[$page_route][$name] = $form;
-
-            $this->recache_jsgrids = true;
-        }
-    }
-	
-    /**
-     * if enabled on this page, load the JS + CSS and set the selectors.
-     */
+        
     public function onTwigSiteVariables()
     {
         $config = $this->config->get('plugins.jsgrid');
@@ -247,11 +231,71 @@ class JsgridPlugin extends Plugin
 
         
     }
-	/**
-     * Add current directory to twig lookup paths.
-     */
+	
     public function onTwigTemplatePaths()
     {
         $this->grav['twig']->twig_paths[] = __DIR__ . '/templates';
     }
+    
+    public function addRegisterPage($pageJsgridHeader, $route)
+    {
+        /** @var Pages $pages */
+        $pages = $this->grav['pages'];
+        $page = $pages->dispatch($route);
+
+        if (!$page) {
+            $page = new Page();
+            $page->init(new \SplFileInfo(__DIR__ . '/pages/jsgridform.md'));
+            $page->slug(basename($route));
+            $page->header($pageJsgridHeader);
+            $page->frontmatter(Yaml::dump((array)$page->header()));
+            $pages->addPage($page, $route);
+        }
+        return $page;
+    }
+
+	public function pageIsJsgrid($page)
+	{
+		$pageName = $page->value('name');
+		if ($page->modularTwig())
+		{
+			$pageName = substr($pageName,6);
+		}
+		if ($pageName <> 'jsgrid')
+		{
+			return false;
+		}
+		$header = (array) $page->header();
+		if (empty($header['jsgrid']))
+		{
+			return false;
+		}
+		return $header['jsgrid'];
+	}
+
+    public function isJsgridRoute()
+    {
+        $this->route = $this->grav['uri']->route();
+		$this->base = '/_jsgrid/_form/';
+		return $this->base === substr($this->route,0,strlen($this->base));
+    }
+    
+    public function isRequestJson()
+    {
+		$grav = Grav::instance();
+        $request  = $grav['request'];
+		foreach(explode(',',$request->getServerParams()['HTTP_ACCEPT']) as $accept)
+		{
+			// echo '*******';
+			// print_r($accept);
+			// echo '*******' . "\n";
+			$accept = trim($accept);
+			if ($accept == 'application/json')
+			{
+				return true;
+			}
+		}
+		return false;
+	}
+    
 }
