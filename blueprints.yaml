@@ -1,5 +1,5 @@
 name: JsGrid
-version: 0.2.0
+version: 0.5.2
 testing: false
 description: Include JsGrid HTML Front-end
 icon: check-square
@@ -15,7 +15,6 @@ license: MIT
 dependencies:
     - { name: grav, version: '>=1.6.0' }
     - { name: form, version: '>=3.0.3' }
-    - { name: cadphp, version: '>=2.0.0' }
     
 form:
   validation: strict

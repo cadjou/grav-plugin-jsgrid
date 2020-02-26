@@ -59,6 +59,7 @@ class JsgridPlugin extends Plugin
     
 	public function onPluginsInitialized()
     {
+        require __DIR__ . '/classes/Jsgrid.php';
         $this->jsgridsSession = Grav::instance()['session']->getFlashObject('jsgrid');
         if ($this->isAdmin()) {
             $this->enable([
@@ -104,79 +105,59 @@ class JsgridPlugin extends Plugin
         }
         foreach($this->jsgridsSession as $id=>$jsgrid)
         {
-            $header = isset($jsgrid['header']) ? $jsgrid['header'] : false;
-            $route  = isset($header['form'],$header['form']['action']) ? $header['form']['action'] : false;
-            if ($route)
-            {
-                $page = $this->addRegisterPage($header,$route); 
-            }
+            $jsgrid->backFromSession();
         }
     }
     
     public function onFormProcessed(Event $event)
     {
-        // print_r($event);
-        $form = $event['form'];
+        $form   = $event['form'];
         $action = $event['action'];
         $params = $event['params'];
         
-        $idJsgrid = isset($form->getValue('data')['_id']) ? $form->getValue('data')['_id'] : false;
-        
-        print_r($this->jsgridsSession[$idJsgrid]);
-		if ($event['action'] <> 'jsgrid')
+        if ($event['action'] <> 'jsgrid')
 		{
 			return;
 		}
-        $return_data = [];
-		foreach($params as $key=>$data)
+        $jsgridName = 'jsgrid_' . $form->get('name');
+        $jsgrid     = isset($this->jsgridsSession[$jsgridName]) ? $this->jsgridsSession[$jsgridName] : [];
+        
+        $data = $jsgrid->onJsgridProcessed($form->getValue('data'));
+        
+        $this->jsgridsSession[$jsgridName] = $jsgrid;
+        Grav::instance()['session']->setFlashObject('jsgrid',$this->jsgridsSession);
+		
+        $returnData['data']               = $data ? $data :  null;
+        $returnData['__unique_form_id__'] = $jsgrid->getUniqueId();
+        if ($this->isRequestJson())
 		{
-			$return_data[$key] = \Grav\Plugin\CadphpPlugin::dataProcess($data);
-		}
-		if ($this->isRequestJson())
-		{
-			// Return JSON
 			header('Content-Type: application/json');
-			echo json_encode($return_data);
+			echo json_encode($returnData);
 			exit;	
 		}
     }
     	
 	public function onPageProcessed(Event $e)
     {
-        /** @var PageInterface $page */
-        $page = $e['page'];
-		$dataJsgrid = $this->pageIsJsgrid($page);
+		$dataJsgrid = $this->pageIsJsgrid($e['page']);
 		if (!$dataJsgrid)
 		{
 			return;
 		}
-        // print_r($dataJsgrid);
         
-        $uniqid = str_replace('.','',uniqid());
+        $jsgrid = new Jsgrid($dataJsgrid);
         
-        $dataJsgrid['fields']['_id']['default'] = $uniqid;
-        $dataJsgrid['fields']['_id']['type'] = 'hidden';
+        if (!$jsgrid->getName())
+        {
+            return;
+        }
         
-        $header['form']['name']     = $dataJsgrid['name'] . '_' . $uniqid;
-        $header['form']['action']   = '/_jsgrid/_form/' . $uniqid;
-        $header['form']['fields']   = $dataJsgrid['fields'];
-        $header['form']['process']  = ['jsgrid'=>['form_json_response'=>'p5:select']];
+        $this->jsgrids[$jsgrid->getName()] = $jsgrid;
         
-        $dataJsgrid['header'] = $header;
-        $jsgrids[$uniqid] = $dataJsgrid;
-        Grav::instance()['session']->setFlashObject('jsgrid',$jsgrids);
-        $page = $this->addRegisterPage($header,$header['form']['action']);
-        $form = $this->grav['forms']->createPageForm($page,$header['form']['name']);
-        
-        $dataJsgrid['getUniqueId']  = $form->getUniqueId();
-        $dataJsgrid['getNonce']     = $form->getNonce();
-        $dataJsgrid['getNonceName'] = $form->getNonceName();
-        $dataJsgrid['getId']        = $form->get('id');
-        $dataJsgrid['getName']      = $form->get('name');
+        Grav::instance()['session']->setFlashObject('jsgrid',$this->jsgrids);
         
         $twig	= $this->grav['twig'];
-        $twig->twig_vars['jsgrid'] = $dataJsgrid;
-		return;
+        $twig->twig_vars['jsgrid'] = $jsgrid->getForTwig();
 	}
     
     public function onPageInitialized()
@@ -276,7 +257,7 @@ class JsgridPlugin extends Plugin
     public function isJsgridRoute()
     {
         $this->route = $this->grav['uri']->route();
-		$this->base = '/_jsgrid/_form/';
+		$this->base  = '/_jsgrid/_form/';
 		return $this->base === substr($this->route,0,strlen($this->base));
     }
     
@@ -286,9 +267,6 @@ class JsgridPlugin extends Plugin
         $request  = $grav['request'];
 		foreach(explode(',',$request->getServerParams()['HTTP_ACCEPT']) as $accept)
 		{
-			// echo '*******';
-			// print_r($accept);
-			// echo '*******' . "\n";
 			$accept = trim($accept);
 			if ($accept == 'application/json')
 			{
