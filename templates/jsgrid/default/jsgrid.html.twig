@@ -27,46 +27,56 @@
         changeVal(type,form_jsgrid);
         var d = $.Deferred();
         $.ajax({
-            url: form_jsgrid.attr('action'),
+            url:  form_jsgrid.attr('action'),
             type: form_jsgrid.attr('method'),
             data: form_jsgrid.serialize(),
             dataType: 'json'
         }).done(function(response) {
             d.resolve(response['data']);
-            $.each(response,function(i, v) {
-                if (i != 'data')
-                {
-                    form_jsgrid.find('input[name^="' + i + '"]').each(function() {
-                        console.log($(this).attr('name'));
-                        if (i == $(this).attr('name'))
-                        {
-                            console.log(v);
-                            $(this).val(v);
-                        }
-                    });
-                }
-            });
+            resetForm(response,form_jsgrid);
+            if (typeRequest != 'get')
+            {
+                reload("{{ jsgrid.jsgridName }}");
+            }
         });
-        if (typeRequest != 'get')
-        {
-            reload("{{ jsgrid.jsgridName }}");
-        }
         return d.promise();
     }
-    var changeVal = function (items,form)
+    function changeVal(items,form)
     {
         $.each(items,function(i, v) {
             
             var index =  'data[' + i.toLowerCase() + ']';
-            //console.log(index);
             var valeur = v;
             form.find('input[name^="data"]').each(function() {
-                //console.log($(this).attr('name'));
                 if (index == $(this).attr('name').toLowerCase())
                 {
                     $(this).val(valeur);
                 }
                 });
+        });
+    }
+    function resetForm (response,form)
+    {
+        $.each(response,function(i, v) {
+            if (i == 'data')
+            {
+                var index =  'data[_requestid]';
+                form.find('input[name^="data"]').each(function() {
+                    if (index != $(this).attr('name').toLowerCase())
+                    {
+                        $(this).val(null);
+                    }
+                });
+            }
+            else
+            {
+                form.find('input[name^="' + i + '"]').each(function() {
+                    if (i == $(this).attr('name'))
+                    {
+                        $(this).val(v);
+                    }
+                });
+            }
         });
     }
     $("#{{ jsgrid.jsgridName }}").jsGrid({
@@ -86,8 +96,13 @@
             }
         },
         autoload: true,
-        {% for field_name, field in jsgrid.options %}
-                {{ field_name }}:{{ field|default(false) }},
+        {% for optionName, option in jsgrid.options %}
+            {{ optionName }}:
+            {% if option|default(false) %}
+                {{ option }}
+            {% else  %}
+                false
+            {% endif  %},
         {% endfor %}
  
         fields: [

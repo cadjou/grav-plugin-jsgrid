@@ -1,7 +1,7 @@
 ---
-title: test
+title: Example
 jsgrid:
-    name: jsgridTest
+    name: jsgridExample
     options:
         filtering: true
         editing: true

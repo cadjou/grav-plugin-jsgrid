@@ -61,6 +61,7 @@ class JsgridPlugin extends Plugin
     {
         require __DIR__ . '/classes/Jsgrid.php';
         $this->jsgridsSession = Grav::instance()['session']->getFlashObject('jsgrid');
+        
         if ($this->isAdmin()) {
             $this->enable([
                 'onGetPageTemplates' => ['onGetPageTemplates', 0],
@@ -115,15 +116,16 @@ class JsgridPlugin extends Plugin
         $action = $event['action'];
         $params = $event['params'];
         
-        if ($event['action'] <> 'jsgrid')
+        if ($action <> 'jsgrid')
 		{
 			return;
 		}
+        
         $jsgridName = 'jsgrid_' . $form->get('name');
         $jsgrid     = isset($this->jsgridsSession[$jsgridName]) ? $this->jsgridsSession[$jsgridName] : [];
         
         $data = $jsgrid->onJsgridProcessed($form->getValue('data'));
-        
+
         $this->jsgridsSession[$jsgridName] = $jsgrid;
         Grav::instance()['session']->setFlashObject('jsgrid',$this->jsgridsSession);
 		

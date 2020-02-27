@@ -259,28 +259,46 @@ class Jsgrid
     
     protected function onJsgridGet($data)
     {
-        return $this->fileData ? array_values((array)$this->fileData) : null;
+        $tableReturn = null;
+        if ($this->fileData)
+        {
+            $tableReturn = [];
+            foreach($this->fileData as $raw)
+            {
+                $tableRaw = [];
+                foreach($raw as $key=>$value)
+                {
+                    $tableRaw[$key] = ($value == false or $value == 'false' ) ? null : $value;
+                }
+                $tableReturn[] = $tableRaw;
+            }
+        }
+        return $tableReturn;
     }
     
     protected function onJsgridAdd($data)
     {
-        $data['_id'] = min(array_keys((array)$this->fileData),0) + 1;
-        if (!$this->fileData)
+        // print_r($this->fileData);
+        if($this->fileData)
         {
-           $this->fileData = (object) [$data['_id'] => $data];
+            // print_r(max((array) array_column($this->fileData,'_id')) + 1);
         }
         else
         {
-            $this->fileData->{$data['_id']} = $data;
+            // print_r(1);
         }
+        $data['_id'] = $this->fileData ? max(array_column($this->fileData,'_id')) + 1 : 1;
+        // print_r($data);
+        $this->fileData[] = $data;
         return $this->sauveFile($this->fileData);
     }
     
     protected function onJsgridUpdate($data)
     {
-        if (!empty($data['_id']) and isset($this->fileData->{$data['_id']}))
+        if (!empty($data['_id']))
         {
-            $this->fileData->{$data['_id']} = $data;
+            $tableIdData = array_flip(array_column($this->fileData,'_id'));
+            $this->fileData[$tableIdData[$data['_id']]] = $data;
             return $this->sauveFile($this->fileData);
         }
         return false;
@@ -288,9 +306,11 @@ class Jsgrid
     
     protected function onJsgridDelete($data)
     {
-        if (!empty($data['_id']) and isset($this->fileData[$data['_id']]))
+        if (!empty($data['_id']))
         {
-            unset($this->fileData[$data['_id']]);
+            $tableIdData = array_flip(array_column($this->fileData,'_id'));
+            $key = $tableIdData[$data['_id']];
+            unset($this->fileData[$key]);
             return $this->sauveFile($this->fileData);
         }
         return false;
@@ -331,7 +351,7 @@ class Jsgrid
         }
         // print_r($dataFile['data']);
         // print_r($resetData);
-        $this->fileData = !$resetData ? $dataFile['data'] : [];
+        $this->fileData = !$resetData ? (array) $dataFile['data'] : $this->fileData;
         // print_r($this->fileData);
     }
     
@@ -343,7 +363,6 @@ class Jsgrid
     protected function sauveFile()
     {
         $save = file_put_contents($this->fullFileName, json_encode(['conf'=>$this->fileConf,'data'=>$this->fileData]));
-        $this->fileData = [];
         return $save;
     }
 }
