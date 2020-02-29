@@ -39,13 +39,18 @@ class Jsgrid
     
     protected $fileData = [];
     
+    protected $dataFields = [];
+    
     protected $fullFileName = '';
     
-    public function __construct($dataJsgrid = [])
+    protected $dataInit = [];
+    
+    public function __construct($dataJsgrid = [],$dataInit = [])
     {
         if($dataJsgrid)
         {
             $this->createJsgrid($dataJsgrid);
+            $this->dataInit = $dataInit;
         }
     }
     
@@ -154,7 +159,23 @@ class Jsgrid
         $this->formId      = $form->get('id');
         $this->formName    = $form->get('name');
         $this->jsgridInit &= (bool) $this->formId;
-        return $this->jsgridInit;
+        // print_r($form->getFields());
+        foreach($form->getFields() as $fieldName=>$dataField)
+        {
+            if (!empty($dataField['options']) and !empty($dataField['data-options@']))
+            {
+                list($jsg,$field) = explode(':',$dataField['data-options@'][1]);
+                $this->dataFields[$fieldName] = $dataField['options'];
+                $this->fields[$fieldName]['items'] = $fieldName;
+                $this->fields[$fieldName]['valueField'] = 'id';
+                $this->fields[$fieldName]['textField'] = $field;
+            }
+        }
+        // print_r("*******\n");
+        // print_r($this->dataFields);
+        
+        // print_r("*******\n");
+        // return $this->jsgridInit;
     }
     
     public function onJsgridProcessed($data)
@@ -217,6 +238,7 @@ class Jsgrid
         $twig['uniqueId']   = $this->uniqueId;
         $twig['nonce']      = $this->nonce;
         $twig['nonceName']  = $this->nonceName;
+        $twig['dataFields'] = $this->dataFields;
         
         return $twig;
     }
@@ -228,6 +250,34 @@ class Jsgrid
             return $this->jsgridName;
         }
         return false;
+    }
+    
+    public function getPathData()
+    {
+        if ($this->jsgridInit)
+        {
+            return $this->pathData;
+        }
+        return false;
+    }
+    
+    public function getColumn($field)
+    {
+        if (!$this->jsgridInit or empty($this->fields[$field]))
+        {
+            return [$field];
+        }
+        $label = $this->fields[$field]['label'] ?? $field;
+        $pathGravData = Grav::instance()['locator']->findResource('user-data://', true);
+        $fullFileName = $pathGravData . DS . ltrim($this->pathData,'/') . '.json';
+        if (!realpath($fullFileName))
+        {
+            return false;
+        }
+        $this->fullFileName = $fullFileName;
+        $dataFile = JsonFile::instance($fullFileName)->content();
+        $AllData = $dataFile['data'] ?? [];
+        return array_column($AllData,$field,'_id');
     }
     
     public function getFormName()
@@ -259,21 +309,59 @@ class Jsgrid
     
     protected function onJsgridGet($data)
     {
-        $tableReturn = null;
+        $dataInit = $this->dataInit;
+        if ($this->dataInit)
+        {
+            $data = $this->dataInit;
+            $this->dataInit = [];
+        }
+        $tableReturn = $return = null;
         if ($this->fileData)
         {
-            $tableReturn = [];
+            $tableReturn = $info = $return = [];
             foreach($this->fileData as $raw)
             {
                 $tableRaw = [];
+                $hiddenLine = [];
                 foreach($raw as $key=>$value)
                 {
+                    similar_text(strtolower($data[$key]??''), strtolower($value), $delta);
+                    $delta = empty($data[$key]) ? 100 : $delta;
+                    if (!empty($data[$key]))
+                    {
+                        $info[][$key] = $delta . ' ' . $data[$key] . ' ' . $value;  
+                    }
+                    $hiddenLine[$key] = $delta;
                     $tableRaw[$key] = ($value == false or $value == 'false' ) ? null : $value;
                 }
-                $tableReturn[] = $tableRaw;
+                $scoreCompar = array_sum($hiddenLine)/max(count($hiddenLine),1);
+                while(isset($tableReturn[$scoreCompar]))
+                {
+                    $scoreCompar--;
+                }
+                $tableReturn[$scoreCompar] = $tableRaw; 
+            }
+            krsort($tableReturn);
+            $return = [];
+            $level = 83;
+            foreach($tableReturn as $w=>$item)
+            {
+                if ($w < $level)
+                {
+                    if ($return)
+                    {
+                        break;
+                    }
+                    $level -= 10;
+                }
+                $return[] = $item;
+                if ($w == 100)
+                {
+                    $level = $dataInit ? 95 : 79;
+                }
             }
         }
-        return $tableReturn;
+        return ['data'=>$return,'info'=>$tableReturn];
     }
     
     protected function onJsgridAdd($data)

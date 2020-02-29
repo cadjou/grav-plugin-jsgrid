@@ -1,8 +1,8 @@
 name: JsGrid
-version: 0.6.0
+version: 0.7.0
 testing: false
 description: Include JsGrid HTML Front-end
-icon: check-square
+icon: th
 author:
   name: CaDJoU
   email: cadjou@gmail.com

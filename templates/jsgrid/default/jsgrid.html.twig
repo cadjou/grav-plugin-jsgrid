@@ -4,7 +4,44 @@
 </div>
 
 <script>
- 
+// https://codepen.io/regateiro/pen/qPRpPp
+ function InitGridCustomFields () {
+	var jsGridCustomDateTimeField = function (config) {
+    console.log('on init field');
+		jsGrid.Field.call(this, config);
+	};
+
+	jsGridCustomDateTimeField.prototype = new jsGrid.Field({
+        sorter: function (date1, date2) {
+            return new Date(date1) - new Date(date2);
+        },
+
+        itemTemplate: function (value) {
+            return new Date(value).toLocaleDateString('fr-FR');
+        },
+
+        insertTemplate: function (value) {
+            return this._insertPicker = $("<input>").datepicker({ defaultDate: new Date() });
+        },
+
+        editTemplate: function (value) {
+            return this._editPicker = $("<input>").datepicker().datepicker("setDate", new Date(value));
+        },
+
+        insertValue: function () {
+            return this._insertPicker.datepicker("getDate").toISOString();
+        },
+
+        editValue: function () {
+            return this._editPicker.datepicker("getDate").toISOString();
+        }
+    });
+
+	jsGrid.fields.date = jsGridCustomDateTimeField;
+};
+
+InitGridCustomFields();
+
     var countries = [
         { name: "", id: 0 },
         { name: "United States", id: "1" },
@@ -12,12 +49,17 @@
         { name: "United Kingdom", id: "3" }
     ];
     
+    {% for field_name, dataField in jsgrid.dataFields %}
+        var {{ field_name }}= {{ dataField|json_encode }};
+    {% endfor %}
+    
     var form_jsgrid   = $('#{{ jsgrid.formId }}');
     
     function reload(grid)
     {
         $("#" + grid).jsGrid("loadData");
     }
+    var noLoopLoad = false;
     function request(items,typeRequest)
     {
         changeVal(items,form_jsgrid);
@@ -34,8 +76,9 @@
         }).done(function(response) {
             d.resolve(response['data']);
             resetForm(response,form_jsgrid);
-            if (typeRequest != 'get')
+            if (typeRequest != 'get' || (!response['data'] && !noLoopLoad))
             {
+                noLoopLoad = true;
                 reload("{{ jsgrid.jsgridName }}");
             }
         });

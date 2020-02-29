@@ -37,6 +37,9 @@ class JsgridPlugin extends Plugin
     protected $jsgrids = [];
     
     /** @var array */
+    protected $dataInit = [];
+    
+    /** @var array */
     protected $jsgridsSession = [];
 	
 	public static function checkRequirements(): bool
@@ -129,7 +132,8 @@ class JsgridPlugin extends Plugin
         $this->jsgridsSession[$jsgridName] = $jsgrid;
         Grav::instance()['session']->setFlashObject('jsgrid',$this->jsgridsSession);
 		
-        $returnData['data']               = $data ? $data :  null;
+        $returnData['data']               = $data['data'] ? $data['data'] :  null;
+        $returnData['info']               = $data['info'] ? $data['info'] :  null;
         $returnData['__unique_form_id__'] = $jsgrid->getUniqueId();
         if ($this->isRequestJson())
 		{
@@ -141,13 +145,53 @@ class JsgridPlugin extends Plugin
     	
 	public function onPageProcessed(Event $e)
     {
-		$dataJsgrid = $this->pageIsJsgrid($e['page']);
+        
+        $uri = $this->grav['uri']->route();
+        if ($this->grav['pages']->dispatch($uri))
+        {
+            return;
+        }
+        
+        $page = $e['page'];
+        $header = (array) $page->header();
+        
+        if (!$this->pageIsJsgrid($page))
+		{
+			return false;
+		}
+        $dataJsgrid = $this->pageIsJsgrid($page);
+        
+        $re = '/' . addcslashes($page->route(),'/') . '\/(.*)/';
+        preg_match($re, $uri, $matches, PREG_OFFSET_CAPTURE, 0);
+
+        $dataUrl = $matches[1][0] ?? '';
+        if (!$dataUrl)
+        {
+            return;
+        }
+        // print_r(urldecode($uri));
+        parse_str($dataUrl,$dataInit);
+        $this->dataInit = $dataInit;
+        $page->route(urldecode($uri));
+	}
+    
+    public function onPageInitialized()
+    {
+        $page = $this->grav['page'];
+        $load = !empty($this->config->get('plugins.jsgrid.always_load'));
+		$dataJsgrid = $this->pageIsJsgrid($page);
+        if ($load or $dataJsgrid)
+		{
+			$this->enable([
+				'onTwigSiteVariables' => ['onTwigSiteVariables', 0]
+			]);
+		}
 		if (!$dataJsgrid)
 		{
-			return;
+            return;
 		}
         
-        $jsgrid = new Jsgrid($dataJsgrid);
+        $jsgrid = new Jsgrid($dataJsgrid,$this->dataInit);
         
         if (!$jsgrid->getName())
         {
@@ -160,25 +204,7 @@ class JsgridPlugin extends Plugin
         
         $twig	= $this->grav['twig'];
         $twig->twig_vars['jsgrid'] = $jsgrid->getForTwig();
-	}
-    
-    public function onPageInitialized()
-    {   
-        $load = !empty($this->config->get('plugins.jsgrid.always_load'));
-
-		if (!$load)
-		{
-			$page = $this->grav['page'];
-			$data = Yaml::parse($page->frontmatter());
-			$load = (is_array($data) and isset($data['jsgrid'])) ? $data['jsgrid'] : false;
-		}
 		
-		if ($load)
-		{
-			$this->enable([
-				'onTwigSiteVariables' => ['onTwigSiteVariables', 0]
-			]);
-		}
     }
         
     public function onTwigSiteVariables()
@@ -194,12 +220,16 @@ class JsgridPlugin extends Plugin
 
         if (!empty($config['use_cdn']))
 		{
+			$jsgrid_bits[] = "https://stackpath.bootstrapcdn.com/bootstrap/4.4.1/js/bootstrap.min.js";
+			$jsgrid_bits[] = "https://unpkg.com/bootstrap-datepicker@1.9.0/dist/js/bootstrap-datepicker.min.js";
 			$jsgrid_bits[] = "{$jsgridCDN}/jsgrid/{$currentVersion}/jsgrid{$mode}.js";
 			$jsgrid_bits[] = "{$jsgridCDN}/jsgrid/{$currentVersion}/jsgrid-theme{$mode}.css";
 			$jsgrid_bits[] = "{$jsgridCDN}/jsgrid/{$currentVersion}/jsgrid{$mode}.css";
         }
 		else
 		{
+			$jsgrid_bits[] = "https://stackpath.bootstrapcdn.com/bootstrap/4.4.1/js/bootstrap.min.js";
+			$jsgrid_bits[] = "https://unpkg.com/bootstrap-datepicker@1.9.0/dist/js/bootstrap-datepicker.min.js";
 			$jsgrid_bits[] = "plugin://jsgrid/js/{$currentVersion}/jsgrid{$mode}.js";
 			$jsgrid_bits[] = "plugin://jsgrid/css/{$currentVersion}/jsgrid-theme{$mode}.css";
 			$jsgrid_bits[] = "plugin://jsgrid/css/{$currentVersion}/jsgrid{$mode}.css";
@@ -239,6 +269,14 @@ class JsgridPlugin extends Plugin
 
 	public function pageIsJsgrid($page)
 	{
+        if (!\is_object($page))
+        {
+            return false;
+        }
+        if (get_class ($page) != 'Grav\Common\Page\Page')
+        {
+            return false;
+        }
 		$pageName = $page->value('name');
 		if ($page->modularTwig())
 		{
@@ -278,4 +316,46 @@ class JsgridPlugin extends Plugin
 		return false;
 	}
     
+    public static function dataProcess($data)
+    {
+		$Grav = Grav::instance();
+        
+        list($route,$field) = explode(':',$data);
+        $path = 'C:/site/grav/user/pages/' . $route;
+        $routes = $Grav['pages']->routes();
+        if (!isset($routes[$route]))
+        {
+            return;
+        }
+        $page = $Grav['pages']->get($routes[$route]);
+        $dataJsgrid = self::pageIsJsgrid($page);
+		if (!$dataJsgrid)
+		{
+            return;
+		}
+        $jsgrid = new Jsgrid($dataJsgrid);
+        // print_r($jsgrid);
+        if (!$jsgrid)
+        {
+            return;
+        }
+        $table = [0=>["id"=>null,$field=>'']];
+        $c = 1;
+        foreach($jsgrid->getColumn($field) as $id=>$value)
+        {
+            
+            $table[$c]['id'] = (string) $id;
+            $table[$c][$field] = $value;
+            $c++;
+            
+        }
+        return $table;
+        // print_r($data);
+        // $dataJsgrid = $this->pageIsJsgrid($e['page']);
+		// if (!$dataJsgrid)
+		// {
+			// return;
+		// }
+        
+	}
 }
